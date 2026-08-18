@@ -10,6 +10,7 @@ import {
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTransparentImage } from '../hooks/useTransparentImage';
+import TicketQR from '../components/TicketQR';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('telemetry'); // telemetry, walkin, scanner, ai_forecast, rules_slots, reports
@@ -404,57 +405,39 @@ function WalkinPOS({ stats, fetchStats }) {
         </div>
 
         {/* Paper Print View preview */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-850 p-8 rounded-3xl flex flex-col justify-center min-h-[400px]">
+        <div className="bg-white dark:bg-slate-900 border border-slate-850 p-8 rounded-3xl flex flex-col justify-center items-center min-h-[400px]">
           {ticketResult ? (
-            <div className="space-y-6 text-center">
-              <span className="text-xs text-slate-500 block uppercase tracking-widest animate-pulse font-semibold">Ready to Print</span>
+            <div className="space-y-4 text-center max-w-sm w-full">
+              <span className="text-xs text-emerald-500 font-bold block uppercase tracking-widest animate-pulse">✓ Ticket Issued & Ready for Gate Entry</span>
               
-              {/* Paper print */}
-              <div className="bg-white text-black p-6 rounded-2xl max-w-xs mx-auto border-4 border-dashed border-slate-300 shadow-xl text-left text-xs font-mono">
-                <div className="text-center border-b border-slate-300 pb-2 mb-3">
-                  <h5 className="font-bold text-sm">TEERTHSETHU SPOT PASS</h5>
-                  <p className="text-[9px] text-slate-500">TIRUPATI GATE ENTRY TICKET</p>
-                </div>
-                
-                <div className="flex justify-center mb-3">
-                  <QrCode className="h-28 w-28 text-slate-900 border p-2 bg-slate-55" />
-                </div>
-                <div className="text-center font-bold text-sm tracking-widest text-slate-850 mb-3">
-                  {ticketResult.bookingId}
-                </div>
+              <TicketQR 
+                ticketData={{
+                  bookingId: ticketResult.bookingId,
+                  templeName: 'Tirupati Gate Spot Pass',
+                  date: new Date().toISOString().split('T')[0],
+                  timeSlot: 'Immediate Entry',
+                  visitors: ticketResult.visitors,
+                  specialDarshan: ticketResult.specialDarshan,
+                  status: 'Confirmed'
+                }}
+                size={180}
+                showDetails={true}
+                showActions={true}
+              />
 
-                <div className="space-y-1.5 text-[9px] border-t border-slate-200 pt-2.5 text-slate-700">
-                  <div><strong>Devotee:</strong> {formData.name}</div>
-                  <div><strong>Phone:</strong> {formData.phone}</div>
-                  <div><strong>Quantity:</strong> {ticketResult.visitors} Persons</div>
-                  <div><strong>Category:</strong> {ticketResult.specialDarshan} Darshan</div>
-                  <div><strong>Issued At:</strong> {new Date().toLocaleString()}</div>
-                </div>
-              </div>
-
-              <div className="flex gap-4 max-w-xs mx-auto">
-                <button 
-                  onClick={() => {
-                    alert("Ticket sent to registers!");
-                    setTicketResult(null);
-                  }}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-900 dark:text-white font-bold rounded-xl text-xs"
-                >
-                  Print Verification
-                </button>
-                <button 
-                  onClick={() => setTicketResult(null)}
-                  className="flex-1 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-750 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold"
-                >
-                  Clear Screen
-                </button>
-              </div>
+              <button 
+                onClick={() => setTicketResult(null)}
+                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all mt-2"
+              >
+                Issue Next Ticket
+              </button>
             </div>
           ) : (
-            <div className="text-center text-slate-500 py-12 space-y-2">
-              <Printer className="h-16 w-16 mx-auto text-slate-800 animate-bounce" />
-              <h4 className="font-bold text-slate-600 dark:text-slate-400">Offline Counter Inactive</h4>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">Set pilgrim group quantities on the left card and tap print to render a visual gate pass.</p>
+            <div className="text-center text-slate-500 space-y-3">
+              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto border border-dashed border-slate-300 dark:border-slate-700">
+                <Printer className="h-8 w-8 text-slate-400" />
+              </div>
+              <p className="text-sm font-semibold">Fill form & submit to generate offline QR spot pass</p>
             </div>
           )}
         </div>
@@ -473,8 +456,18 @@ function ScannerConsole({ stats, fetchStats }) {
   const [scanLog, setScanLog] = useState([]);
 
   const handleScanCode = (codeToScan) => {
-    const code = codeToScan || inputCode;
+    let code = codeToScan || inputCode;
     if (!code.trim()) return;
+
+    // Try parsing JSON payload if formatted from QR payload
+    try {
+      if (code.startsWith('{') && code.endsWith('}')) {
+        const parsed = JSON.parse(code);
+        if (parsed.bookingId) code = parsed.bookingId;
+      }
+    } catch (e) {
+      // Use raw code string
+    }
 
     setScanState('scanning');
     

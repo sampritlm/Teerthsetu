@@ -36,7 +36,7 @@ export default function Auth() {
 
   const triggerSuccessAnimation = (userData, token, route, isOtp = false) => {
     setShowVideo(true);
-    
+
     if (isOtp) {
       setShowVerifiedText(true);
       setTimeout(() => {
@@ -312,8 +312,8 @@ export default function Auth() {
         const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            idToken: codeResponse.access_token, 
+          body: JSON.stringify({
+            idToken: codeResponse.access_token,
             role: role,
             email: userInfo.email,
             name: userInfo.name
@@ -349,7 +349,7 @@ export default function Auth() {
     if (!forgotEmail) return;
 
     const emailToSend = forgotEmail;
-    
+
     // Optimistically show success message immediately for zero latency
     setForgotSuccess(true);
 
@@ -389,16 +389,16 @@ export default function Auth() {
     <div className="min-h-screen bg-slate-50 dark:bg-[#1A1A2E] text-slate-900 dark:text-white flex items-center justify-center p-6 relative transition-colors duration-300 overflow-hidden">
       <AnimatePresence>
         {showVideo && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden pointer-events-none ${isDarkMode ? 'bg-black' : 'bg-slate-50'}`}
           >
-            <video 
-              src={isDarkMode ? "/otp.mp4" : "/otp_light_mode.mp4"} 
-              autoPlay 
+            <video
+              src={isDarkMode ? "/otp.mp4" : "/otp_light_mode.mp4"}
+              autoPlay
               playsInline
               muted
               className={`absolute inset-0 w-full h-full object-cover scale-150 transform ${isDarkMode ? 'brightness-[0.3]' : 'brightness-[0.6] contrast-[1.1]'}`}

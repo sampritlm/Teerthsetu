@@ -1,0 +1,9 @@
+{
+  "type": "validation_error",
+  "code": "verification_failed",
+  "message": "Verification attempt failed",
+  "error": {
+    "refId": "176328"
+  }
+}
+Status: 500

@@ -934,7 +934,7 @@ app.post('/api/verify/aadhaar/send-otp', async (req, res) => {
   // Simulated logic
   const ref_id = `cf_req_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  
+
   aadhaarSessions[ref_id] = {
     aadhaar_number: aadhaar_number.replace(/\D/g, ''),
     otp,
@@ -942,7 +942,7 @@ app.post('/api/verify/aadhaar/send-otp', async (req, res) => {
   };
 
   console.log(`[CASHFREE AADHAAR SIMULATION] Ref ID: ${ref_id} | OTP sent to linked mobile: ${otp}`);
-  
+
   if (phone && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
     try {
       const twilio = require('twilio');
@@ -957,7 +957,7 @@ app.post('/api/verify/aadhaar/send-otp', async (req, res) => {
       console.error("Twilio SMS error in Aadhaar simulation:", err);
     }
   }
-  
+
   res.json({ success: true, ref_id, message: 'OTP sent successfully to Aadhaar registered mobile number.' });
 });
 
@@ -1064,6 +1064,30 @@ app.delete('/api/bookings/:id', (req, res) => {
   } else {
     res.status(404).json({ success: false, message: 'Booking not found' });
   }
+// Payment Gateway Integration Routes
+app.post('/api/payment/create-order', (req, res) => {
+  const { amount, currency = 'INR', receipt = 'receipt_1' } = req.body;
+  const orderId = `order_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+  res.json({
+    success: true,
+    orderId,
+    amount: (amount || 0) * 100, // amount in paise
+    currency,
+    receipt,
+    keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_TeerthSetuSandbox'
+  });
+});
+
+app.post('/api/payment/verify', (req, res) => {
+  const { paymentId, orderId, signature } = req.body;
+
+  res.json({
+    success: true,
+    verified: true,
+    transactionId: paymentId || `TXN-${Date.now().toString().slice(-8)}`,
+    message: 'Payment signature verified successfully'
+  });
 });
 
 // Accommodation
@@ -1126,10 +1150,20 @@ app.post('/api/admin/config', (req, res) => {
 });
 
 app.post('/api/admin/scan', (req, res) => {
-  const { qrCode } = req.body;
+  let { qrCode } = req.body;
 
   if (!qrCode) {
     return res.status(400).json({ valid: false, message: 'NO CODE PROVIDED' });
+  }
+
+  // Parse stringified JSON payloads (e.g. {"bookingId":"TS-...", ...})
+  try {
+    if (typeof qrCode === 'string' && qrCode.trim().startsWith('{') && qrCode.trim().endsWith('}')) {
+      const parsed = JSON.parse(qrCode);
+      if (parsed.bookingId) qrCode = parsed.bookingId;
+    }
+  } catch (err) {
+    // Keep original qrCode string
   }
 
   // If already used
@@ -1179,6 +1213,57 @@ app.get('/api/ai/forecast', (req, res) => {
     queueLengthMeters: Math.floor(350 * mult),
     overflowVehicles: Math.max(0, Math.floor((60 * mult - 90) * 15))
   });
+});
+
+// Cashfree Aadhaar Verification Endpoints
+app.post('/api/auth/aadhaar-send-otp', async (req, res) => {
+  try {
+    const { aadhaar } = req.body;
+    const response = await fetch('https://sandbox.cashfree.com/verification/offline-aadhaar/otp', {
+      method: 'POST',
+      headers: {
+        'x-client-id': process.env.CASHFREE_CLIENT_ID,
+        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ aadhaar_number: aadhaar })
+    });
+    const data = await response.json();
+    require('fs').writeFileSync('cashfree_error_log.txt', JSON.stringify(data, null, 2) + '\nStatus: ' + response.status);
+    if (response.ok && (data.status === 'SUCCESS' || data.ref_id)) {
+      res.json({ success: true, ref_id: data.ref_id });
+    } else {
+      res.json({ success: false, message: data.message || 'Failed to send OTP' });
+    }
+  } catch (err) {
+    console.error('Send OTP Error:', err);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+app.post('/api/auth/aadhaar-verify-otp', async (req, res) => {
+  try {
+    const { ref_id, otp } = req.body;
+    const response = await fetch('https://sandbox.cashfree.com/verification/offline-aadhaar/verify', {
+      method: 'POST',
+      headers: {
+        'x-client-id': process.env.CASHFREE_CLIENT_ID,
+        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ ref_id: ref_id || '', otp: otp || '' })
+    });
+    const data = await response.json();
+    require('fs').writeFileSync('cashfree_verify_log.txt', JSON.stringify({ payload: { ref_id, otp }, response: data }, null, 2) + '\nStatus: ' + response.status);
+    if (response.ok && data.status === 'VALID') {
+      res.json({ success: true, message: 'Aadhaar verified', details: data });
+    } else {
+      res.json({ success: false, message: data.message || 'Verification failed' });
+    }
+  } catch (err) {
+    console.error('Verify OTP Error:', err);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
 });
 
 const PORT = process.env.PORT || 5000;

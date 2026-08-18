@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
+import TicketQR from '../components/TicketQR';
+import PaymentGatewayModal from '../components/PaymentGatewayModal';
 
 export default function DevoteeDashboard() {
   const [activeTab, setActiveTab] = useState('explore'); // explore, planner, hotels, bookings, profile, alerts
@@ -847,7 +849,7 @@ function TempleDetailsModal({ temple, user, onClose }) {
 
   const handleBookSubmit = (e) => {
     e.preventDefault();
-    setStep('aadhaar');
+    setStep('payment');
   };
 
   const handleSendOTP = async () => {
@@ -856,11 +858,11 @@ function TempleDetailsModal({ temple, user, onClose }) {
     
     try {
       const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://teerthsetu.onrender.com';
-      const res = await fetch(baseUrl + '/api/verify/aadhaar/send-otp', {
+      const res = await fetch(baseUrl + '/api/auth/aadhaar-send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          aadhaar_number: aadhaarNumber.replace(/\D/g, ''),
+          aadhaar: aadhaarNumber.replace(/\D/g, ''),
           phone: user?.phone
         })
       });
@@ -886,7 +888,7 @@ function TempleDetailsModal({ temple, user, onClose }) {
     
     try {
       const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://teerthsetu.onrender.com';
-      const res = await fetch(baseUrl + '/api/verify/aadhaar/verify-otp', {
+      const res = await fetch(baseUrl + '/api/auth/aadhaar-verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ref_id: aadhaarRefId, otp })
@@ -1284,9 +1286,9 @@ function TempleDetailsModal({ temple, user, onClose }) {
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-saffron hover:bg-[#e85a28] text-slate-900 dark:text-white font-bold text-md rounded-xl transition-all shadow-lg mt-2"
+                className="w-full py-2.5 bg-saffron hover:bg-[#e85a28] text-white font-bold text-md rounded-xl transition-all shadow-lg mt-2"
               >
-                Proceed to Verification & Payment
+                Proceed to Payment
               </button>
             </form>
           )}
@@ -1382,77 +1384,55 @@ function TempleDetailsModal({ temple, user, onClose }) {
             </div>
           )}
 
-          {/* STEP 3: PAYMENT PORTAL (Screen 13) */}
-          {step === 'payment' && (
-            <div className="space-y-6 text-center py-6">
-              <h4 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Secure Gateway</h4>
-              <p className="text-xs text-slate-600 dark:text-slate-400">TeerthSethu Payment Portal - Sandbox Mode</p>
-
-              <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 max-w-xs mx-auto text-left text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Service</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{formData.specialDarshan} Darshan</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Devotees</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{formData.visitors} Persons</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-850 pt-2 text-sm">
-                  <span className="text-slate-700 dark:text-slate-300 font-bold">Total Payable</span>
-                  <span className="font-extrabold text-gold">
-                    ₹ {formData.specialDarshan === 'General' ? 0 : formData.specialDarshan === 'Special' ? formData.visitors * 100 : formData.visitors * 500}
-                  </span>
-                </div>
-              </div>
-
-              {/* Options */}
-              <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto mb-6">
-                <button
-                  type="button"
-                  onClick={() => setPayMethod('upi')}
-                  className={`p-3 border rounded-xl flex flex-col items-center justify-center text-xs font-semibold gap-1 transition-all ${payMethod === 'upi' ? 'border-saffron bg-saffron/10 text-saffron' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-white'}`}
-                >
-                  <CreditCard className="h-4.5 w-4.5" /> UPI Apps
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPayMethod('card')}
-                  className={`p-3 border rounded-xl flex flex-col items-center justify-center text-xs font-semibold gap-1 transition-all ${payMethod === 'card' ? 'border-saffron bg-saffron/10 text-saffron' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-white'}`}
-                >
-                  <CreditCard className="h-4.5 w-4.5" /> Card Pay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPayMethod('wallet')}
-                  className={`p-3 border rounded-xl flex flex-col items-center justify-center text-xs font-semibold gap-1 transition-all ${payMethod === 'wallet' ? 'border-saffron bg-saffron/10 text-saffron' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-white'}`}
-                >
-                  <CreditCard className="h-4.5 w-4.5" /> Wallets
-                </button>
-              </div>
-
-              {isPaying ? (
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-10 h-10 border-4 border-saffron border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs text-slate-600 dark:text-slate-400 animate-pulse">Contacting payment servers...</span>
-                </div>
-              ) : (
-                <div className="flex gap-4 max-w-sm mx-auto">
-                  <button
-                    onClick={() => setStep('booking')}
-                    className="flex-1 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-white dark:bg-slate-800 rounded-xl font-bold text-sm"
-                  >
-                    Go Back
-                  </button>
-                  <button
-                    onClick={handlePayment}
-                    className="flex-1 py-2.5 bg-saffron hover:bg-[#e85a28] text-slate-900 dark:text-white rounded-xl font-extrabold text-sm shadow-md"
-                  >
-                    Confirm & Pay
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          {/* STEP 3: PAYMENT PORTAL GATEWAY MODAL */}
+          <PaymentGatewayModal
+            isOpen={step === 'payment'}
+            onClose={() => setStep('booking')}
+            amount={formData.specialDarshan === 'General' ? 0 : formData.specialDarshan === 'Special' ? formData.visitors * 100 : formData.visitors * 500}
+            orderDetails={{
+              ...formData,
+              templeName: temple.name
+            }}
+            onSuccess={(paymentResult) => {
+              setIsPaying(true);
+              const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://teerthsetu.onrender.com';
+              
+              fetch(baseUrl + '/api/bookings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  templeId: temple._id,
+                  ...formData,
+                  paymentId: paymentResult.transactionId,
+                  paymentMethod: paymentResult.payMethod,
+                  paymentStatus: 'PAID'
+                })
+              })
+                .then(res => res.json())
+                .then(data => {
+                  setIsPaying(false);
+                  if (data.success) {
+                    setBookedData(data);
+                    setStep('ticket');
+                  } else {
+                    alert(data.message || 'Booking failed');
+                    setStep('booking');
+                  }
+                })
+                .catch(err => {
+                  setIsPaying(false);
+                  setBookedData({
+                    bookingId: `TS-${Date.now().toString().slice(-8)}-${Math.floor(1000 + Math.random() * 9000)}`,
+                    date: formData.date,
+                    timeSlot: formData.timeSlot,
+                    visitors: formData.visitors,
+                    specialDarshan: formData.specialDarshan,
+                    waitlistPosition: 0
+                  });
+                  setStep('ticket');
+                });
+            }}
+          />
 
           {/* STEP 4: QR TICKET ISSUED (Screen 14) */}
           {step === 'ticket' && bookedData && (
@@ -1463,21 +1443,17 @@ function TempleDetailsModal({ temple, user, onClose }) {
               <h4 className="text-2xl font-bold text-emerald-400">Darshan Verified!</h4>
               <p className="text-slate-600 dark:text-slate-400 text-xs">Your entry pass has been registered on the blockchain queue.</p>
 
-              {/* QR Block */}
-              <div className="bg-white text-slate-950 p-6 rounded-2xl inline-block shadow-xl relative max-w-xs mx-auto">
-                <div className="absolute top-0 left-0 w-full h-2 bg-saffron rounded-t-2xl" />
-                <div className="p-3 bg-slate-100 rounded-lg inline-block mb-3 border border-slate-200">
-                  <QrCode className="h-28 w-28 text-slate-900 animate-pulse" />
-                </div>
-                <h5 className="font-mono font-bold text-sm tracking-wider text-slate-700">{bookedData.bookingId}</h5>
-                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">{temple.name}</p>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-4 pt-3 border-t border-slate-200 text-left text-[10px] text-slate-650">
-                  <div><strong className="block text-slate-600 dark:text-slate-400 text-[8px] uppercase">Date</strong>{bookedData.date}</div>
-                  <div><strong className="block text-slate-600 dark:text-slate-400 text-[8px] uppercase">Slot</strong>{bookedData.timeSlot.split(' ')[0]}</div>
-                  <div><strong className="block text-slate-600 dark:text-slate-400 text-[8px] uppercase">Devotees</strong>{bookedData.visitors} Guests</div>
-                  <div><strong className="block text-slate-600 dark:text-slate-400 text-[8px] uppercase">Waitlist</strong>{bookedData.waitlistPosition > 0 ? `#${bookedData.waitlistPosition}` : 'Confirmed'}</div>
-                </div>
+              {/* Scannable Dynamic QR Ticket Component */}
+              <div className="py-2">
+                <TicketQR 
+                  ticketData={{
+                    ...bookedData,
+                    templeName: temple.name
+                  }} 
+                  size={180}
+                  showDetails={true}
+                  showActions={true}
+                />
               </div>
 
               {bookedData.waitlistPosition > 0 && (
@@ -1500,20 +1476,12 @@ function TempleDetailsModal({ temple, user, onClose }) {
                 </p>
               </div>
 
-              <div className="flex gap-4 max-w-xs mx-auto pt-2 mt-4">
-                <button
-                  onClick={() => {
-                    alert("Ticket downloaded to PDF!");
-                  }}
-                  className="flex-1 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-900 dark:text-white rounded-xl text-xs font-bold transition-all"
-                >
-                  Download Pass
-                </button>
+              <div className="max-w-xs mx-auto pt-2 mt-4">
                 <button
                   onClick={onClose}
-                  className="flex-1 py-2.5 bg-saffron hover:bg-[#e85a28] text-slate-900 dark:text-white rounded-xl text-xs font-bold transition-all"
+                  className="w-full py-2.5 bg-saffron hover:bg-[#e85a28] text-white rounded-xl text-xs font-bold transition-all shadow-md"
                 >
-                  Back to Board
+                  Close & View Dashboard
                 </button>
               </div>
             </div>
@@ -1994,47 +1962,14 @@ function BookingsView() {
                 <X className="h-5 w-5" />
               </button>
 
-              <h4 className="text-xl font-bold mb-4">Gate Pass QR Ticket</h4>
+              <h4 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">Gate Pass QR Ticket</h4>
 
-              <div className="bg-white text-slate-950 p-6 rounded-2xl inline-block shadow-lg mb-4">
-                <QrCode className="h-28 w-28 mx-auto text-slate-900 mb-2" />
-                <span className="font-mono font-bold text-xs tracking-wider text-slate-700 block">{selectedTicket.bookingId}</span>
-                <span className="text-[10px] font-bold uppercase text-saffron">{selectedTicket.templeName}</span>
-              </div>
-
-              <div className="bg-white dark:bg-slate-950 p-4 rounded-xl text-left text-xs mb-6 space-y-2 border border-slate-850">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Date</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-semibold">{selectedTicket.date}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Slot</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-semibold">{selectedTicket.timeSlot.split(' ')[0]}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">visitors</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-semibold">{selectedTicket.visitors} Persons</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Assist</span>
-                  <span className="text-gold font-semibold">
-                    {selectedTicket.wheelchair ? 'Wheelchair ' : ''}
-                    {selectedTicket.volunteer ? 'Volunteer ' : ''}
-                    {!selectedTicket.wheelchair && !selectedTicket.volunteer && 'None'}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  alert("PDF Download trigger");
-                  setSelectedTicket(null);
-                }}
-                className="w-full py-2.5 bg-saffron text-slate-900 dark:text-white font-bold rounded-xl hover:bg-[#e85a28] transition-all text-xs"
-              >
-                Download PDF QR Pass
-              </button>
+              <TicketQR 
+                ticketData={selectedTicket} 
+                size={180}
+                showDetails={true}
+                showActions={true}
+              />
             </motion.div>
           </motion.div>
         )}
@@ -2138,7 +2073,7 @@ function ProfileView({ user, setUser }) {
     <div className="space-y-8">
       <div>
         <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">Devotee Profile Settings</h3>
-        <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">Configure family members registry, verify Aadhaar settings, and toggle accessibility preferences.</p>
+        <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">Configure family members registry, profile details, and toggle accessibility preferences.</p>
       </div>
 
       {successMsg && (
@@ -2163,10 +2098,6 @@ function ProfileView({ user, setUser }) {
             <div>
               <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Email Address</label>
               <input type="email" className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white" value={user.email} onChange={e => setUser({ ...user, email: e.target.value })} required />
-            </div>
-            <div>
-              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Aadhaar Card (Optional)</label>
-              <input type="text" className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white" value={user.aadhaar} onChange={e => setUser({ ...user, aadhaar: e.target.value })} />
             </div>
             <div className="col-span-2">
               <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Resident Address</label>
