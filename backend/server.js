@@ -649,12 +649,25 @@ let globalState = {
 };
 
 const attendanceHistory = [
-  { time: '08:00', visitors: 1200 },
-  { time: '10:00', visitors: 3500 },
-  { time: '12:00', visitors: 4800 },
-  { time: '14:00', visitors: 4100 },
-  { time: '16:00', visitors: 5200 },
-  { time: '18:00', visitors: 3800 },
+  { time: '04:00 AM', visitors: 1100, online: 800, walkin: 300, capacity: 6500 },
+  { time: '05:00 AM', visitors: 2400, online: 1700, walkin: 700, capacity: 6500 },
+  { time: '06:00 AM', visitors: 3800, online: 2700, walkin: 1100, capacity: 6500 },
+  { time: '07:00 AM', visitors: 4900, online: 3500, walkin: 1400, capacity: 6500 },
+  { time: '08:00 AM', visitors: 6100, online: 4300, walkin: 1800, capacity: 6500 },
+  { time: '09:00 AM', visitors: 6800, online: 4800, walkin: 2000, capacity: 6500 },
+  { time: '10:00 AM', visitors: 7400, online: 5200, walkin: 2200, capacity: 6500 },
+  { time: '11:00 AM', visitors: 7100, online: 5000, walkin: 2100, capacity: 6500 },
+  { time: '12:00 PM', visitors: 5600, online: 3900, walkin: 1700, capacity: 6500 },
+  { time: '01:00 PM', visitors: 4200, online: 3000, walkin: 1200, capacity: 6500 },
+  { time: '02:00 PM', visitors: 3900, online: 2800, walkin: 1100, capacity: 6500 },
+  { time: '03:00 PM', visitors: 4500, online: 3200, walkin: 1300, capacity: 6500 },
+  { time: '04:00 PM', visitors: 5800, online: 4100, walkin: 1700, capacity: 6500 },
+  { time: '05:00 PM', visitors: 6700, online: 4700, walkin: 2000, capacity: 6500 },
+  { time: '06:00 PM', visitors: 7600, online: 5300, walkin: 2300, capacity: 6500 },
+  { time: '07:00 PM', visitors: 7200, online: 5000, walkin: 2200, capacity: 6500 },
+  { time: '08:00 PM', visitors: 5900, online: 4100, walkin: 1800, capacity: 6500 },
+  { time: '09:00 PM', visitors: 3800, online: 2700, walkin: 1100, capacity: 6500 },
+  { time: '10:00 PM', visitors: 1800, online: 1300, walkin: 500, capacity: 6500 }
 ];
 
 let bookings = [
@@ -1064,6 +1077,8 @@ app.delete('/api/bookings/:id', (req, res) => {
   } else {
     res.status(404).json({ success: false, message: 'Booking not found' });
   }
+});
+
 // Payment Gateway Integration Routes
 app.post('/api/payment/create-order', (req, res) => {
   const { amount, currency = 'INR', receipt = 'receipt_1' } = req.body;

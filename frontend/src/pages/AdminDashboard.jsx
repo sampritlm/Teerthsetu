@@ -7,10 +7,12 @@ import {
   MapPin,  Printer, UserPlus, Bell, CheckCircle, Search, Calendar, X,
   Activity, ArrowUpRight, ArrowDownRight, Smartphone, Sun, Moon
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTransparentImage } from '../hooks/useTransparentImage';
 import TicketQR from '../components/TicketQR';
+import GateQRScanner from '../components/GateQRScanner';
+import MinimalDarkLineChart from '../components/MinimalDarkLineChart';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('telemetry'); // telemetry, walkin, scanner, ai_forecast, rules_slots, reports
@@ -19,13 +21,13 @@ export default function AdminDashboard() {
   
   // Custom slot state (Screen 22)
   const [slots, setSlots] = useState([
-    { id: '1', time: '07:00 AM - 09:00 AM', capacity: 15000, booked: 12400 },
-    { id: '2', time: '09:00 AM - 11:00 AM', capacity: 15000, booked: 14800 },
-    { id: '3', time: '11:00 AM - 01:00 PM', capacity: 15000, booked: 15000 },
-    { id: '4', time: '01:00 PM - 03:00 PM', capacity: 15000, booked: 8900 }
+    { id: '1', time: '07:00 AM - 08:00 AM', category: 'General Darshan', onlineMins: 40, generalMins: 20, totalMins: 60, totalSlots: 1500, onlineQuota: 1000, generalQuota: 500, bookedOnline: 820, bookedGeneral: 390 },
+    { id: '2', time: '08:00 AM - 09:00 AM', category: 'General Darshan', onlineMins: 40, generalMins: 20, totalMins: 60, totalSlots: 1800, onlineQuota: 1200, generalQuota: 600, bookedOnline: 1150, bookedGeneral: 580 },
+    { id: '3', time: '09:00 AM - 10:00 AM', category: 'Special Entry (₹300)', onlineMins: 45, generalMins: 15, totalMins: 60, totalSlots: 2000, onlineQuota: 1500, generalQuota: 500, bookedOnline: 1480, bookedGeneral: 490 },
+    { id: '4', time: '10:00 AM - 11:00 AM', category: 'General Darshan', onlineMins: 35, generalMins: 25, totalMins: 60, totalSlots: 1600, onlineQuota: 933, generalQuota: 667, bookedOnline: 750, bookedGeneral: 620 }
   ]);
   const [newSlotTime, setNewSlotTime] = useState('');
-  const [newSlotCap, setNewSlotCap] = useState(15000);
+  const [newSlotCap, setNewSlotCap] = useState(1500);
 
   const navigate = useNavigate();
 
@@ -54,17 +56,65 @@ export default function AdminDashboard() {
   const handleAddSlot = (e) => {
     e.preventDefault();
     if(!newSlotTime) return;
+    const totSlots = parseInt(newSlotCap) || 1500;
+    const onlineMins = 40;
+    const generalMins = 20;
+    const onlineQ = Math.round((onlineMins / 60) * totSlots);
+    const genQ = totSlots - onlineQ;
     setSlots([...slots, {
       id: Date.now().toString(),
       time: newSlotTime,
-      capacity: parseInt(newSlotCap),
-      booked: 0
+      category: 'General Darshan',
+      onlineMins,
+      generalMins,
+      totalMins: 60,
+      totalSlots: totSlots,
+      onlineQuota: onlineQ,
+      generalQuota: genQ,
+      bookedOnline: 0,
+      bookedGeneral: 0
     }]);
     setNewSlotTime('');
   };
 
   const handleDeleteSlot = (id) => {
     setSlots(slots.filter(s => s.id !== id));
+  };
+
+  const handleAdjustOnlineMins = (id, deltaMins) => {
+    setSlots(prev => prev.map(s => {
+      if (s.id !== id) return s;
+      const newOnlineMins = Math.min(55, Math.max(5, s.onlineMins + deltaMins));
+      const newGeneralMins = (s.totalMins || 60) - newOnlineMins;
+      const newOnlineQuota = Math.round((newOnlineMins / (s.totalMins || 60)) * s.totalSlots);
+      const newGeneralQuota = s.totalSlots - newOnlineQuota;
+      return {
+        ...s,
+        onlineMins: newOnlineMins,
+        generalMins: newGeneralMins,
+        onlineQuota: newOnlineQuota,
+        generalQuota: newGeneralQuota
+      };
+    }));
+  };
+
+  const handleAdjustTotalSlots = (id, deltaSlots) => {
+    setSlots(prev => prev.map(s => {
+      if (s.id !== id) return s;
+      const newTotal = Math.max((s.bookedOnline || 0) + (s.bookedGeneral || 0), s.totalSlots + deltaSlots);
+      const newOnlineQuota = Math.round(((s.onlineMins || 40) / (s.totalMins || 60)) * newTotal);
+      const newGeneralQuota = newTotal - newOnlineQuota;
+      return {
+        ...s,
+        totalSlots: newTotal,
+        onlineQuota: newOnlineQuota,
+        generalQuota: newGeneralQuota
+      };
+    }));
+  };
+
+  const handleChangeCategory = (id, category) => {
+    setSlots(prev => prev.map(s => (s.id === id ? { ...s, category } : s)));
   };
 
   const { isDarkMode, toggleTheme } = useTheme();
@@ -142,10 +192,14 @@ export default function AdminDashboard() {
               {activeTab === 'rules_slots' && (
                 <RulesSlotsView 
                   stats={stats} 
+                  setStats={setStats}
                   fetchStats={fetchStats} 
                   slots={slots} 
                   handleAddSlot={handleAddSlot} 
                   handleDeleteSlot={handleDeleteSlot}
+                  handleAdjustOnlineMins={handleAdjustOnlineMins}
+                  handleAdjustTotalSlots={handleAdjustTotalSlots}
+                  handleChangeCategory={handleChangeCategory}
                   newSlotTime={newSlotTime}
                   setNewSlotTime={setNewSlotTime}
                   newSlotCap={newSlotCap}
@@ -173,6 +227,51 @@ function SidebarButton({ active, icon, text, onClick }) {
   );
 }
 
+function CrowdAnalyticsTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const isSurge = data.visitors > 6500;
+    const capacityPct = Math.round((data.visitors / 6500) * 100);
+
+    return (
+      <div className="bg-slate-950/95 text-white border border-slate-800 p-4 rounded-2xl shadow-2xl text-xs space-y-2 max-w-xs font-sans backdrop-blur-md">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span className="font-bold text-saffron">{label}</span>
+          {isSurge ? (
+            <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full font-bold uppercase">
+              🔥 Peak Surge ({capacityPct}%)
+            </span>
+          ) : (
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold uppercase">
+              ✓ Normal Flow ({capacityPct}%)
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-1.5 pt-1 font-mono text-[11px]">
+          <div className="flex justify-between">
+            <span className="text-slate-400">Total Pilgrim Flow:</span>
+            <strong className="text-emerald-400 font-extrabold">{data.visitors.toLocaleString()} / hr</strong>
+          </div>
+          <div className="flex justify-between text-slate-300">
+            <span className="text-slate-500">Online Bookings:</span>
+            <span>{data.online ? data.online.toLocaleString() : Math.round(data.visitors * 0.7)}</span>
+          </div>
+          <div className="flex justify-between text-slate-300">
+            <span className="text-slate-500">Spot Walk-ins:</span>
+            <span>{data.walkin ? data.walkin.toLocaleString() : Math.round(data.visitors * 0.3)}</span>
+          </div>
+          <div className="flex justify-between text-slate-400 border-t border-slate-800 pt-1">
+            <span className="text-slate-500">Gate Threshold:</span>
+            <span>6,500 / hr</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 // ==========================================
 // VIEW 1: LIVE COMMAND TELEMETRY (Screens 20 & 25)
 // ==========================================
@@ -194,8 +293,8 @@ function TelemetryView({ stats, analytics }) {
         </div>
         <div className="bg-white dark:bg-slate-900/60 border border-slate-850 p-6 rounded-2xl">
           <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider block mb-1">Today's Revenue</span>
-          <span className="text-3xl font-extrabold text-slate-900 dark:text-white flex items-center gap-1">
-            <DollarSign className="h-6 w-6 text-emerald-400" /> ₹ {stats.todayRevenue.toLocaleString()}
+          <span className="text-3xl font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+            <span className="text-emerald-400 font-bold">₹</span>{stats.todayRevenue.toLocaleString()}
           </span>
         </div>
         <div className="bg-white dark:bg-slate-900/60 border border-slate-850 p-6 rounded-2xl">
@@ -214,24 +313,9 @@ function TelemetryView({ stats, analytics }) {
 
       {/* Graphs & Analytics Dashboard (Screen 25) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Hourly graph */}
-        <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-850 p-6 rounded-3xl h-96">
-          <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Today's Hourly Attendance Graph</h4>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={analytics}>
-              <defs>
-                <linearGradient id="colorVis" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.25}/>
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-              <XAxis dataKey="time" stroke="#64748B" fontSize={10} />
-              <YAxis stroke="#64748B" fontSize={10} />
-              <Tooltip contentStyle={{ backgroundColor: '#0B0F19', borderColor: '#1E293B', color: '#F1F5F9' }} />
-              <Area type="monotone" dataKey="visitors" stroke="#10B981" strokeWidth={2} fillOpacity={1} fill="url(#colorVis)" />
-            </AreaChart>
-          </ResponsiveContainer>
+        {/* Minimalist Dark Line Chart (Matching Reference Image) */}
+        <div className="md:col-span-2">
+          <MinimalDarkLineChart title="TEERTHSETU CROWD & ATTENDANCE MULTI-ANALYSIS TREND" />
         </div>
 
         {/* Live Gauges (Screen 25 - Live Crowd Monitor) */}
@@ -450,176 +534,8 @@ function WalkinPOS({ stats, fetchStats }) {
 // VIEW 3: QR ENTRY SCANNER (Screen 24)
 // ==========================================
 function ScannerConsole({ stats, fetchStats }) {
-  const [inputCode, setInputCode] = useState('');
-  const [scanState, setScanState] = useState('idle'); // idle, scanning, success, error, warning
-  const [scanMessage, setScanMessage] = useState('');
-  const [scanLog, setScanLog] = useState([]);
-
-  const handleScanCode = (codeToScan) => {
-    let code = codeToScan || inputCode;
-    if (!code.trim()) return;
-
-    // Try parsing JSON payload if formatted from QR payload
-    try {
-      if (code.startsWith('{') && code.endsWith('}')) {
-        const parsed = JSON.parse(code);
-        if (parsed.bookingId) code = parsed.bookingId;
-      }
-    } catch (e) {
-      // Use raw code string
-    }
-
-    setScanState('scanning');
-    
-    setTimeout(() => {
-      fetch((window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://teerthsetu.onrender.com') + '/api/admin/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrCode: code })
-      })
-      .then(res => res.json())
-      .then(data => {
-        const time = new Date().toLocaleTimeString();
-        if (data.valid) {
-          setScanState('success');
-          setScanMessage(data.message);
-          setScanLog([{ time, code, msg: data.message, valid: true }, ...scanLog]);
-          fetchStats();
-        } else {
-          const isWarning = data.message.includes('ALREADY');
-          setScanState(isWarning ? 'warning' : 'error');
-          setScanMessage(data.message);
-          setScanLog([{ time, code, msg: data.message, valid: false }, ...scanLog]);
-        }
-      })
-      .catch(err => {
-        setScanState('error');
-        setScanMessage('GATE COMMUNICATION FAILURE');
-        console.error(err);
-      });
-    }, 800);
-  };
-
-  const handleSimulateRandom = () => {
-    // Random scan simulator
-    const isGood = Math.random() > 0.3;
-    const mockCode = isGood 
-      ? `TS-${Date.now().toString().slice(-8)}-${Math.floor(1000 + Math.random() * 9000)}`
-      : Math.random() > 0.5 ? 'TS-EXPIRED' : 'TS-INVALID-CODE';
-    
-    setInputCode(mockCode);
-    handleScanCode(mockCode);
-  };
-
   return (
-    <div className="space-y-8">
-      <div>
-        <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">QR Gate Security Scanner</h3>
-        <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">Simulate physical scanner checkpoints at Temple Gates 1 to 4.</p>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Camera interface simulation */}
-        <div className={`border rounded-3xl p-8 flex flex-col items-center justify-center min-h-[350px] relative transition-all ${
-          scanState === 'idle' ? 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800' :
-          scanState === 'scanning' ? 'bg-white dark:bg-slate-900 border-emerald-500/50 animate-pulse' :
-          scanState === 'success' ? 'bg-emerald-950/20 border-emerald-500' :
-          scanState === 'warning' ? 'bg-amber-950/20 border-amber-500' :
-          'bg-red-950/20 border-red-500'
-        }`}>
-          {/* Simulation Overlay Box */}
-          <div className="absolute top-4 left-4 text-[10px] bg-white dark:bg-slate-950 px-3 py-1 rounded-full text-slate-600 dark:text-slate-400 border border-slate-850 flex items-center gap-1.5">
-            <Camera className="h-3 w-3" /> SECURITY GATE 1 SCANNER
-          </div>
-
-          <AnimatePresence mode="wait">
-            {scanState === 'idle' && (
-              <motion.div key="idle" className="text-center space-y-4">
-                <QrCode className="h-24 w-24 mx-auto text-emerald-500/60 animate-pulse" />
-                <span className="text-xs text-slate-600 dark:text-slate-400 block font-semibold">Hold Ticket QR code up to checkpoint lens</span>
-              </motion.div>
-            )}
-
-            {scanState === 'scanning' && (
-              <motion.div key="scanning" className="text-center space-y-4">
-                <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                <span className="text-xs text-emerald-400 block font-semibold tracking-wider">Decoding bar index...</span>
-              </motion.div>
-            )}
-
-            {scanState === 'success' && (
-              <motion.div key="success" className="text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 flex items-center justify-center mx-auto text-2xl font-bold animate-bounce">✓</div>
-                <h4 className="text-xl font-bold text-emerald-400">ENTRY GRANTED</h4>
-                <p className="text-xs text-emerald-300 font-semibold">{scanMessage}</p>
-                <button onClick={() => setScanState('idle')} className="text-xs bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-4 py-1.5 rounded-lg hover:bg-emerald-500/20 transition-all">Scan Next Pass</button>
-              </motion.div>
-            )}
-
-            {scanState === 'warning' && (
-              <motion.div key="warning" className="text-center space-y-4">
-                <div className="w-16 h-16 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20 flex items-center justify-center mx-auto text-2xl font-bold animate-bounce">⚠️</div>
-                <h4 className="text-xl font-bold text-amber-400">DUPLICATE ATTEMPT</h4>
-                <p className="text-xs text-amber-300 font-semibold">{scanMessage}</p>
-                <button onClick={() => setScanState('idle')} className="text-xs bg-amber-600/20 text-amber-400 border border-amber-500/30 px-4 py-1.5 rounded-lg hover:bg-amber-500/20 transition-all">Clear Gate Alarm</button>
-              </motion.div>
-            )}
-
-            {scanState === 'error' && (
-              <motion.div key="error" className="text-center space-y-4">
-                <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full border border-red-500/20 flex items-center justify-center mx-auto text-2xl font-bold animate-bounce">✕</div>
-                <h4 className="text-xl font-bold text-red-500">ENTRY REJECTED</h4>
-                <p className="text-xs text-red-300 font-semibold">{scanMessage}</p>
-                <button onClick={() => setScanState('idle')} className="text-xs bg-red-600/20 text-red-500 border border-red-500/30 px-4 py-1.5 rounded-lg hover:bg-red-500/20 transition-all">Reset Scanner</button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Input box and Scan Logs */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-850 p-6 rounded-3xl flex flex-col justify-between">
-          <div>
-            <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Manual Entry Override</h4>
-            
-            <div className="flex gap-2 mb-6">
-              <input 
-                type="text" 
-                placeholder="Enter Booking ID (e.g. TS-...)" 
-                className="flex-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none"
-                value={inputCode}
-                onChange={e => setInputCode(e.target.value)}
-              />
-              <button 
-                onClick={() => handleScanCode()} 
-                className="bg-emerald-600 text-slate-900 dark:text-white font-bold px-4 py-2 rounded-xl text-xs hover:bg-emerald-500"
-              >
-                Scan Code
-              </button>
-            </div>
-
-            <button 
-              onClick={handleSimulateRandom}
-              className="w-full py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-750 text-emerald-400 font-bold border border-slate-750 rounded-xl text-xs transition-all mb-6"
-            >
-              Simulate Scanning Random Visitor
-            </button>
-
-            <h5 className="font-bold text-slate-700 dark:text-slate-300 mb-3 text-xs uppercase tracking-widest">Scanner Log Ledger</h5>
-            <div className="space-y-2 font-mono text-[10px] max-h-40 overflow-y-auto pr-2">
-              {scanLog.map((l, i) => (
-                <div key={i} className={`p-2.5 rounded-lg flex justify-between items-center ${l.valid ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
-                  <span>{l.code} • {l.msg}</span>
-                  <span className="text-[8px] text-slate-500">{l.time}</span>
-                </div>
-              ))}
-              {scanLog.length === 0 && (
-                <div className="text-slate-500 text-center py-6">Awaiting check-in actions...</div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <GateQRScanner onScanSuccess={() => fetchStats()} />
   );
 }
 
@@ -630,13 +546,44 @@ function AIForecastPlanner() {
   const [weather, setWeather] = useState('Clear');
   const [isWeekend, setIsWeekend] = useState('false');
   const [isFestival, setIsFestival] = useState('false');
-  const [forecast, setForecast] = useState(null);
+
+  // Compute live prediction metrics
+  const computePrediction = (w, wk, f) => {
+    let mult = 1.0;
+    if (w === 'Rain') mult = 0.7;
+    if (wk === 'true') mult = 1.3;
+    if (f === 'true') mult = 2.2;
+
+    const expected = Math.floor(45000 * mult);
+    return {
+      expectedCrowd: expected,
+      volunteersNeeded: Math.floor(120 * mult),
+      securityNeeded: Math.floor(200 * mult),
+      wheelchairs: Math.floor(50 * mult),
+      prasadamLakhs: (1.5 * mult).toFixed(1),
+      parkingOccupancy: Math.min(100, Math.floor(60 * mult)),
+      queueLengthMeters: Math.floor(350 * mult),
+      overflowVehicles: Math.max(0, Math.floor((60 * mult - 90) * 15))
+    };
+  };
+
+  const [forecast, setForecast] = useState(() => computePrediction('Clear', 'false', 'false'));
 
   useEffect(() => {
-    fetch(`/api/ai/forecast?weather=${weather}&isWeekend=${isWeekend}&isFestival=${isFestival}`)
+    const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://teerthsetu.onrender.com';
+    fetch(`${baseUrl}/api/ai/forecast?weather=${weather}&isWeekend=${isWeekend}&isFestival=${isFestival}`)
       .then(res => res.json())
-      .then(setForecast)
-      .catch(err => console.error(err));
+      .then(data => {
+        if (data && data.expectedCrowd) {
+          setForecast(data);
+        } else {
+          setForecast(computePrediction(weather, isWeekend, isFestival));
+        }
+      })
+      .catch(err => {
+        console.error("AI forecast error:", err);
+        setForecast(computePrediction(weather, isWeekend, isFestival));
+      });
   }, [weather, isWeekend, isFestival]);
 
   return (
@@ -687,25 +634,25 @@ function AIForecastPlanner() {
 
       {forecast && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1: Expected Footfall (Screen 26) */}
+          {/* Card 1: Expected Footfall */}
           <ForecastCard 
-            icon={<Users className="h-6 w-6 text-slate-900 dark:text-white" />}
+            icon={<Users className="h-6 w-6 text-emerald-400" />}
             title="Predicted Footfall" 
             value={forecast.expectedCrowd.toLocaleString()} 
             subtitle="Estimated visitors tomorrow" 
             bgColor="border-t-emerald-500"
           />
 
-          {/* Card 2: Volunteer Sizing (Screen 27) */}
+          {/* Card 2: Volunteer Sizing */}
           <ForecastCard 
-            icon={<HardHat className="h-6 w-6 text-blue-400" />}
+            icon={<UserPlus className="h-6 w-6 text-blue-400" />}
             title="Volunteer Allocations" 
             value={`${forecast.volunteersNeeded} Guards`} 
             subtitle="Guides for priority queues & gates" 
             bgColor="border-t-blue-500"
           />
 
-          {/* Card 3: Security deployment (Screen 28) */}
+          {/* Card 3: Security deployment */}
           <ForecastCard 
             icon={<ShieldCheck className="h-6 w-6 text-red-400" />}
             title="Security Deployment" 
@@ -714,27 +661,27 @@ function AIForecastPlanner() {
             bgColor="border-t-red-500"
           />
 
-          {/* Card 4: Parking Occupancy (Screen 29) */}
+          {/* Card 4: Parking Occupancy */}
           <ForecastCard 
-            icon={<Car className="h-6 w-6 text-yellow-400" />}
+            icon={<Activity className="h-6 w-6 text-yellow-400" />}
             title="Parking Space Occupancy" 
             value={`${forecast.parkingOccupancy}%`} 
             subtitle={forecast.overflowVehicles > 0 ? `🔥 Space Full! Overflow: ~${forecast.overflowVehicles} cars` : 'Parking spaces available'} 
             bgColor="border-t-yellow-500"
           />
 
-          {/* Card 5: Prasadam stock (Screen 30) */}
+          {/* Card 5: Prasadam stock */}
           <ForecastCard 
-            icon={<Soup className="h-6 w-6 text-saffron" />}
+            icon={<Sparkles className="h-6 w-6 text-saffron" />}
             title="Prasadam Estimation" 
             value={`${forecast.prasadamLakhs} Lakh`} 
             subtitle="Units of Laddu preparation required" 
             bgColor="border-t-saffron"
           />
 
-          {/* Card 6: Accessibility (Screen 31) */}
+          {/* Card 6: Accessibility */}
           <ForecastCard 
-            icon={<Accessibility className="h-6 w-6 text-purple-400" />}
+            icon={<Clock className="h-6 w-6 text-purple-400" />}
             title="Accessibility Demand" 
             value={`${forecast.wheelchairs} Chairs`} 
             subtitle="Priority gate resources allocated" 
@@ -764,7 +711,11 @@ function ForecastCard({ icon, title, value, subtitle, bgColor }) {
 // ==========================================
 // VIEW 5: CONFIG RULES & SLOTS (Screens 21 & 22)
 // ==========================================
-function RulesSlotsView({ stats, fetchStats, slots, handleAddSlot, handleDeleteSlot, newSlotTime, setNewSlotTime, newSlotCap, setNewSlotCap }) {
+function RulesSlotsView({ 
+  stats, setStats, fetchStats, slots, handleAddSlot, handleDeleteSlot, 
+  handleAdjustOnlineMins, handleAdjustTotalSlots, handleChangeCategory,
+  newSlotTime, setNewSlotTime, newSlotCap, setNewSlotCap 
+}) {
   const handleToggleEmergency = () => {
     const newState = !stats.emergencyMode;
     fetch((window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://teerthsetu.onrender.com') + '/api/admin/config', {
@@ -780,8 +731,8 @@ function RulesSlotsView({ stats, fetchStats, slots, handleAddSlot, handleDeleteS
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">System Config & Slots</h3>
-        <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">Configure daily quotas, manage time slots, or deploy festival security protocols.</p>
+        <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">System Config & Time Window Slots</h3>
+        <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">Configure hourly entry time-windows (e.g. 40m Online / 20m General), dynamically adjust total slots, and deploy emergency crowd protocols.</p>
       </div>
 
       {/* Emergency override alert (Screen 21) */}
@@ -812,32 +763,198 @@ function RulesSlotsView({ stats, fetchStats, slots, handleAddSlot, handleDeleteS
       </div>
 
       <div className="grid md:grid-cols-3 gap-8">
-        {/* Slot Management (Screen 22) */}
-        <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-850 p-6 rounded-3xl space-y-4">
-          <h4 className="text-lg font-bold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-2">Active Time Slots Ledger</h4>
+        {/* Slot Management & Time Window Splitter (Screen 22) */}
+        <div className="md:col-span-2 bg-white dark:bg-slate-900 border border-slate-850 p-6 rounded-3xl space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div>
+              <h4 className="text-lg font-bold text-slate-900 dark:text-white">Active Time Slots & Hourly Minute Splitter</h4>
+              <p className="text-xs text-slate-500">Configure entry minute splits (e.g. 40m Online / 20m General) & dynamically add/reduce slots</p>
+            </div>
+            <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-bold">
+              {slots.length} Active Slots
+            </span>
+          </div>
           
-          <div className="space-y-2 text-xs">
-            {slots.map(s => (
-              <div key={s.id} className="p-3 bg-white dark:bg-slate-950/40 rounded-xl border border-slate-850 flex justify-between items-center text-slate-700 dark:text-slate-300">
-                <div className="space-y-1">
-                  <span className="font-bold text-slate-900 dark:text-white">{s.time}</span>
-                  <span className="block text-[10px] text-slate-500">Booked quota: {s.booked.toLocaleString()} / {s.capacity.toLocaleString()} ({Math.round(s.booked / s.capacity * 100)}%)</span>
+          <div className="space-y-4 text-xs">
+            {slots.map(s => {
+              const onlinePct = Math.round(((s.bookedOnline || 0) / (s.onlineQuota || 1)) * 100);
+              const generalPct = Math.round(((s.bookedGeneral || 0) / (s.generalQuota || 1)) * 100);
+              const onlineMinsPct = Math.round(((s.onlineMins || 40) / (s.totalMins || 60)) * 100);
+
+              return (
+                <div key={s.id} className="p-5 bg-white dark:bg-slate-950/70 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+                  {/* Slot Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-extrabold text-slate-900 dark:text-white text-sm">{s.time}</span>
+                      <select 
+                        className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2.5 py-1 rounded-lg font-semibold focus:outline-none"
+                        value={s.category || 'General Darshan'}
+                        onChange={e => handleChangeCategory(s.id, e.target.value)}
+                      >
+                        <option value="General Darshan">General Darshan</option>
+                        <option value="Special Entry (₹300)">Special Entry (₹300)</option>
+                        <option value="VVIP Priority">VVIP Priority</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono font-bold text-slate-500">
+                        Total Capacity: <strong className="text-slate-900 dark:text-white">{s.totalSlots.toLocaleString()} Slots</strong>
+                      </span>
+                      <button 
+                        onClick={() => handleDeleteSlot(s.id)}
+                        className="p-1.5 text-red-400 hover:text-red-500 bg-red-500/10 rounded-lg transition-all"
+                        title="Delete Slot"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 1. Minute Time-Window Allocation Ribbon */}
+                  <div className="space-y-2 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div className="flex justify-between items-center text-xs font-semibold">
+                      <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        ⏱️ Hourly Time Window Split: <strong className="text-blue-500">{s.onlineMins} Mins Online</strong> / <strong className="text-emerald-500">{s.generalMins} Mins General Spot</strong>
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        Ratio: {onlineMinsPct}% Online | {100 - onlineMinsPct}% General
+                      </span>
+                    </div>
+
+                    {/* Visual Timeline Bar */}
+                    <div className="w-full h-3.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex shadow-inner">
+                      <div 
+                        className="bg-blue-500 h-full flex items-center justify-center text-[9px] font-bold text-white transition-all" 
+                        style={{ width: `${onlineMinsPct}%` }}
+                      >
+                        {s.onlineMins}m Online
+                      </div>
+                      <div 
+                        className="bg-emerald-500 h-full flex items-center justify-center text-[9px] font-bold text-white transition-all" 
+                        style={{ width: `${100 - onlineMinsPct}%` }}
+                      >
+                        {s.generalMins}m General
+                      </div>
+                    </div>
+
+                    {/* Adjust Minutes Controls (+ / - Mins) */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <span className="text-[11px] font-bold text-slate-500">Adjust Entry Window Mins:</span>
+                      <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                        <button 
+                          onClick={() => handleAdjustOnlineMins(s.id, -10)}
+                          className="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md font-bold transition-colors"
+                        >
+                          -10m Online
+                        </button>
+                        <button 
+                          onClick={() => handleAdjustOnlineMins(s.id, -5)}
+                          className="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md font-bold transition-colors"
+                        >
+                          -5m Online
+                        </button>
+                        <button 
+                          onClick={() => handleAdjustOnlineMins(s.id, 5)}
+                          className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-md font-bold transition-colors"
+                        >
+                          +5m Online
+                        </button>
+                        <button 
+                          onClick={() => handleAdjustOnlineMins(s.id, 10)}
+                          className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-md font-bold transition-colors"
+                        >
+                          +10m Online
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Total Slots Capacity Adjuster (+ / - Slots) */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">🎟️ Total Slot Quota:</span>
+                      <strong className="text-base font-extrabold text-slate-900 dark:text-white font-mono">{s.totalSlots.toLocaleString()} Slots</strong>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <span className="text-[11px] font-bold text-slate-500">Adjust Slots:</span>
+                      <button 
+                        onClick={() => handleAdjustTotalSlots(s.id, -100)}
+                        className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 rounded-md font-bold transition-colors"
+                      >
+                        -100 Slots
+                      </button>
+                      <button 
+                        onClick={() => handleAdjustTotalSlots(s.id, -50)}
+                        className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 rounded-md font-bold transition-colors"
+                      >
+                        -50 Slots
+                      </button>
+                      <button 
+                        onClick={() => handleAdjustTotalSlots(s.id, 50)}
+                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-md font-bold transition-colors"
+                      >
+                        +50 Slots
+                      </button>
+                      <button 
+                        onClick={() => handleAdjustTotalSlots(s.id, 100)}
+                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-md font-bold transition-colors"
+                      >
+                        +100 Slots
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Calculated Quotas & Gate Schedule Batch Breakdown */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                    {/* Online Batch */}
+                    <div className="space-y-1.5 bg-blue-500/5 dark:bg-blue-500/10 p-3 rounded-xl border border-blue-500/20">
+                      <div className="flex justify-between font-sans">
+                        <span className="font-bold text-blue-600 dark:text-blue-400">
+                          📱 Online Batch ({s.onlineMins} mins)
+                        </span>
+                        <span className="text-slate-600 dark:text-slate-300 font-bold">
+                          {s.bookedOnline?.toLocaleString() || 0} / {s.onlineQuota?.toLocaleString() || 0} ({onlinePct}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-900 h-2 rounded-full overflow-hidden">
+                        <div className="bg-blue-500 h-full rounded-full transition-all" style={{ width: `${Math.min(100, onlinePct)}%` }} />
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-sans pt-0.5">
+                        Gate Schedule: 00m to {s.onlineMins}m window reserved for online pass holders.
+                      </p>
+                    </div>
+
+                    {/* General Spot Batch */}
+                    <div className="space-y-1.5 bg-emerald-500/5 dark:bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
+                      <div className="flex justify-between font-sans">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          🏢 General Spot Batch ({s.generalMins} mins)
+                        </span>
+                        <span className="text-slate-600 dark:text-slate-300 font-bold">
+                          {s.bookedGeneral?.toLocaleString() || 0} / {s.generalQuota?.toLocaleString() || 0} ({generalPct}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-900 h-2 rounded-full overflow-hidden">
+                        <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${Math.min(100, generalPct)}%` }} />
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-sans pt-0.5">
+                        Gate Schedule: {s.onlineMins}m to {s.totalMins || 60}m window open for general spot queue.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => handleDeleteSlot(s.id)}
-                  className="p-2 text-red-400 hover:text-red-500 bg-red-500/5 hover:bg-red-500/10 rounded-lg transition-all"
-                >
-                  <Trash2 className="h-4.5 w-4.5" />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <form onSubmit={handleAddSlot} className="flex gap-4 pt-4 border-t border-slate-850 text-xs">
             <div className="flex-1">
               <input 
                 type="text" 
-                placeholder="Time range (e.g. 03:00 PM - 05:00 PM)" 
+                placeholder="Time range (e.g. 03:00 PM - 04:00 PM)" 
                 className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-900 dark:text-white"
                 value={newSlotTime}
                 onChange={e => setNewSlotTime(e.target.value)}
@@ -847,7 +964,7 @@ function RulesSlotsView({ stats, fetchStats, slots, handleAddSlot, handleDeleteS
             <div>
               <input 
                 type="number" 
-                placeholder="Max Limit" 
+                placeholder="Max Slot Capacity" 
                 className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-900 dark:text-white"
                 value={newSlotCap}
                 onChange={e => setNewSlotCap(e.target.value)}
@@ -859,6 +976,8 @@ function RulesSlotsView({ stats, fetchStats, slots, handleAddSlot, handleDeleteS
             </button>
           </form>
         </div>
+
+
 
         {/* Global Settings (Screen 21) */}
         <div className="bg-white dark:bg-slate-900 border border-slate-850 p-6 rounded-3xl h-fit space-y-4">

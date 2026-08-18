@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -11,6 +11,39 @@ import { useTheme } from '../contexts/ThemeContext';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts';
 import TicketQR from '../components/TicketQR';
 import PaymentGatewayModal from '../components/PaymentGatewayModal';
+import DevoteeTravelsView from '../components/DevoteeTravelsView';
+import DevoteeNearbyView from '../components/DevoteeNearbyView';
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 bg-white dark:bg-slate-900 rounded-3xl border border-red-500/30 text-center space-y-4 my-8">
+          <div className="w-12 h-12 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto font-bold text-xl">⚠️</div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Something went wrong loading this view</h3>
+          <p className="text-xs text-slate-500">{this.state.error?.toString()}</p>
+          <button 
+            onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+            className="bg-saffron text-slate-900 px-5 py-2 rounded-xl font-bold text-xs shadow-md"
+          >
+            Reload View
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function DevoteeDashboard() {
   const [activeTab, setActiveTab] = useState('explore'); // explore, planner, hotels, bookings, profile, alerts
@@ -145,7 +178,7 @@ export default function DevoteeDashboard() {
 
           <div className="flex items-center gap-3 px-2">
             <div className="w-10 h-10 rounded-full bg-saffron/10 border border-saffron/40 flex items-center justify-center font-bold text-saffron">
-              {user.name.split(' ').map(n => n[0]).join('')}
+              {(user?.name || 'Devotee').split(' ').filter(Boolean).map(n => n[0]).join('')}
             </div>
             <div className="overflow-hidden">
               <p className="text-sm font-semibold truncate text-slate-900 dark:text-white">{user.name}</p>
@@ -165,27 +198,17 @@ export default function DevoteeDashboard() {
 
         {/* Active tab renderer */}
         <div className="flex-1 z-10 max-w-6xl mx-auto w-full">
-          {activeTab === 'explore' && <ExploreView temples={temples} setActiveTab={setActiveTab} user={user} />}
-          {activeTab === 'analysis' && <AnalysisView temples={temples} user={user} setActiveTab={setActiveTab} />}
-          {activeTab === 'planner' && <PlannerView temples={temples} onClose={() => setActiveTab('explore')} />}
-          {activeTab === 'hotels' && <HotelsView />}
-          {activeTab === 'travels' && (
-            <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
-              <Activity className="h-16 w-16 mb-4 text-slate-400 opacity-50" />
-              <h2 className="text-2xl font-bold text-slate-700 dark:text-slate-300">Travels</h2>
-              <p className="mt-2 text-slate-500">Book your flights, trains, and cabs here. Coming Soon!</p>
-            </div>
-          )}
-          {activeTab === 'nearby' && (
-            <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
-              <MapPin className="h-16 w-16 mb-4 text-slate-400 opacity-50" />
-              <h2 className="text-2xl font-bold text-slate-700 dark:text-slate-300">Nearby Suggestions</h2>
-              <p className="mt-2 text-slate-500">Discover restaurants, shops, and attractions nearby. Coming Soon!</p>
-            </div>
-          )}
-          {activeTab === 'bookings' && <BookingsView />}
-          {activeTab === 'profile' && <ProfileView user={user} setUser={setUser} />}
-          {activeTab === 'alerts' && <AlertsView notifications={notifications} markRead={handleMarkNotificationsRead} />}
+          <ErrorBoundary>
+            {activeTab === 'explore' && <ExploreView temples={temples} setActiveTab={setActiveTab} user={user} />}
+            {activeTab === 'analysis' && <AnalysisView temples={temples} user={user} setActiveTab={setActiveTab} />}
+            {activeTab === 'planner' && <PlannerView temples={temples} onClose={() => setActiveTab('explore')} />}
+            {activeTab === 'hotels' && <HotelsView />}
+            {activeTab === 'travels' && <DevoteeTravelsView />}
+            {activeTab === 'nearby' && <DevoteeNearbyView />}
+            {activeTab === 'bookings' && <BookingsView />}
+            {activeTab === 'profile' && <ProfileView user={user} setUser={setUser} />}
+            {activeTab === 'alerts' && <AlertsView notifications={notifications} markRead={handleMarkNotificationsRead} />}
+          </ErrorBoundary>
         </div>
       </main>
     </div>
